@@ -573,8 +573,6 @@ static void * KVOContext = &KVOContext;
     return requestHost != nil && ([self.currentHost rangeOfString:requestHost].location != NSNotFound || [requestHost rangeOfString:self.currentHost].location != NSNotFound);
 }
 
-@end
-
 #pragma mark - Plugin interface
 
 - (void)allowsBackForwardNavigationGestures:(CDVInvokedUrlCommand*)command;
@@ -587,6 +585,8 @@ static void * KVOContext = &KVOContext;
     WKWebView* wkWebView = (WKWebView*)_engineWebView;
     wkWebView.allowsBackForwardNavigationGestures = [value boolValue];
 }
+
+@end
 
 #pragma mark - CDVWKWeakScriptMessageHandler
 
