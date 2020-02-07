@@ -441,7 +441,45 @@ static void * KVOContext = &KVOContext;
         }
     }
 
+    [self setCurrentHostNameIfNeeded: navigationAction.request];
+    [self setOriginalMarfeelCherokeeParameterIfNeeded: navigationAction.request];
+
+    //OLIVER: Custom Marfeel code to prevent clicks on Ads to open on main WebView
+    if ((navigationAction.navigationType == WKNavigationTypeLinkActivated && ![self isCurrentAndRequestSameHost:navigationAction.request])
+        || [self isNavigationTypeOther:(WKNavigationType)navigationAction.navigationType withRequest: navigationAction.request andWebview: webView]) {
+
+        // Test that URL scheme is either HTTP(S)
+        if ([[url scheme] isEqualToString:@"http"] || [[url scheme] isEqualToString:@"https"]) {
+            [[UIApplication sharedApplication] openURL:url]; // forward to application router
+            return decisionHandler(NO);
+        }
+    }
+
     if (anyPluginsResponded) {
+        if(shouldAllowRequest && navigationAction.navigationType == WKNavigationTypeLinkActivated) {
+            if (self.currentHost &&
+                self.marfeelcherokeeParameter &&
+                [self isSubdomain: url] ) {
+                if ([url.query length] == 0 || [url.query rangeOfString:@"marfeelcherokee"].location == NSNotFound) {
+
+
+                    NSString *URLString = [[NSString alloc] initWithFormat:@"%@%@%@", [navigationAction.request.URL absoluteString],
+                                        navigationAction.request.URL.query ? @"&" : @"?", self.marfeelcherokeeParameter];
+                    NSURL *theURL = [NSURL URLWithString:URLString];
+
+                    NSMutableURLRequest *urlRequest = [[NSMutableURLRequest alloc] init];
+                    [urlRequest setURL:theURL];
+
+
+
+
+
+                    [self loadRequest: urlRequest];
+                    return decisionHandler(NO);
+                }
+            }
+        }
+
         return decisionHandler(shouldAllowRequest);
     }
 
@@ -458,6 +496,83 @@ static void * KVOContext = &KVOContext;
     return decisionHandler(NO);
 }
 
+-(void) setOriginalMarfeelCherokeeParameterIfNeeded: (NSURLRequest *) request {
+    NSURL *requestURL = [request URL];
+    NSString *requestScheme = [requestURL scheme];
+
+    if (!self.marfeelcherokeeParameter) {
+        if(![requestScheme isEqualToString:@"file"] && ![requestScheme isEqualToString:@"gap"]) {
+            self.marfeelcherokeeParameter = [requestURL query];
+        }
+    }
+}
+
+-(void) setCurrentHostNameIfNeeded: (NSURLRequest *) request {
+    NSURL *requestURL = [request URL];
+    NSString *requestScheme = [requestURL scheme];
+
+    if(!self.currentHost) {
+        if(![requestScheme isEqualToString:@"file"] && ![requestScheme isEqualToString:@"gap"] && [self isCurrentAndRequestSameUrl:request]) {
+            self.currentHost = [self getURLDomain: requestURL];
+        }
+    }
+}
+
+-(NSString *) getURLDomain: (NSURL *) requestURL {
+    NSString *host = [requestURL host];
+    NSArray *hostComponents = [host componentsSeparatedByString:@"."];
+    NSUInteger hostComponentsCount = [hostComponents count];
+
+    if(hostComponentsCount >= 2) {
+        NSArray *tmp = [hostComponents subarrayWithRange:NSMakeRange(1, hostComponentsCount-1)];
+        return [tmp componentsJoinedByString: @"."];
+    } else {
+        return host;
+    }
+}
+
+-(BOOL) isNavigationTypeOther:(WKNavigationType)navigationType withRequest: (NSURLRequest *)request andWebview: (WKWebView *)webView {
+    NSURL *requestURL = [request URL];
+    NSURL *webViewCurrentURL = webView.URL;
+
+    return (navigationType == WKNavigationTypeOther) &&
+    [self isCurrentAndRequestSameUrl:request] &&
+    ![[requestURL scheme] isEqualToString:@"file"] &&
+    ![self isRequestToAMarfeelDomain: requestURL] &&
+    ![self isLoadedInANewWebView: webViewCurrentURL] &&
+    ![self isSubdomain: requestURL];
+}
+
+-(BOOL) isCurrentAndRequestSameHost: (NSURLRequest *) request {
+    NSURL *currentURL = [request mainDocumentURL];
+    NSString *currentHost = [self getURLDomain: currentURL];
+
+    NSURL *requestURL = [request URL];
+    NSString *requestHost = [self getURLDomain: requestURL];
+
+    return ([currentHost isEqualToString:requestHost]);
+}
+
+-(BOOL) isCurrentAndRequestSameUrl: (NSURLRequest *) request {
+    NSURL *currentURL = [request mainDocumentURL];
+    NSURL *requestURL = [request URL];
+    return ([[currentURL absoluteString] isEqualToString:[requestURL absoluteString]]);
+}
+
+-(BOOL) isLoadedInANewWebView: (NSURL *) currentURL {
+    return !currentURL;
+}
+
+-(BOOL) isRequestToAMarfeelDomain:(NSURL *)url {
+    NSString *requestHost = [url host];
+    return ([requestHost isEqualToString:@"bc.marfeel.com"] || [requestHost isEqualToString:@"b.marfeel.com"] || [requestHost isEqualToString:@"bcdev.marfeel.com"]);
+}
+
+-(BOOL) isSubdomain: (NSURL *)requestURL {
+    NSString *requestHost = [[requestURL host] stringByReplacingOccurrencesOfString:@"www." withString:@""];
+    return requestHost != nil && ([self.currentHost rangeOfString:requestHost].location != NSNotFound || [requestHost rangeOfString:self.currentHost].location != NSNotFound);
+}
+
 #pragma mark - Plugin interface
 
 - (void)allowsBackForwardNavigationGestures:(CDVInvokedUrlCommand*)command;
@@ -470,8 +585,6 @@ static void * KVOContext = &KVOContext;
     WKWebView* wkWebView = (WKWebView*)_engineWebView;
     wkWebView.allowsBackForwardNavigationGestures = [value boolValue];
 }
-
-@end
 
 #pragma mark - CDVWKWeakScriptMessageHandler
 
@@ -490,5 +603,4 @@ static void * KVOContext = &KVOContext;
 {
     [self.scriptMessageHandler userContentController:userContentController didReceiveScriptMessage:message];
 }
-
 @end

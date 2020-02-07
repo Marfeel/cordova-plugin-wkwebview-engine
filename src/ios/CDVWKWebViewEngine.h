@@ -23,6 +23,8 @@
 @interface CDVWKWebViewEngine : CDVPlugin <CDVWebViewEngineProtocol, WKScriptMessageHandler, WKNavigationDelegate>
 
 @property (nonatomic, strong, readonly) id <WKUIDelegate> uiDelegate;
+@property NSString *currentHost;
+@property NSString *marfeelcherokeeParameter;
 
 - (void)allowsBackForwardNavigationGestures:(CDVInvokedUrlCommand*)command;
 
