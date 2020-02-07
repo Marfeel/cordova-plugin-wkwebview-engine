@@ -573,6 +573,8 @@ static void * KVOContext = &KVOContext;
     return requestHost != nil && ([self.currentHost rangeOfString:requestHost].location != NSNotFound || [requestHost rangeOfString:self.currentHost].location != NSNotFound);
 }
 
+@end
+
 #pragma mark - Plugin interface
 
 - (void)allowsBackForwardNavigationGestures:(CDVInvokedUrlCommand*)command;
